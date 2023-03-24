@@ -39,6 +39,7 @@
 
 #include <guacamole/client.h>
 #include <guacamole/pool.h>
+#include <guacamole/recording.h>
 
 #include <xcb/xcb.h>
 
@@ -159,6 +160,12 @@ typedef struct guac_drv_display {
      * The current clipboard contents.
      */
     guac_common_clipboard* clipboard;
+
+    /**
+     * The in-progress session recording, or NULL if no recording is in
+     * progress.
+     */
+    guac_recording* recording;
 
 } guac_drv_display;
 

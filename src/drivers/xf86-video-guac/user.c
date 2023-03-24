@@ -38,6 +38,7 @@
 
 #include <guacamole/client.h>
 #include <guacamole/protocol.h>
+#include <guacamole/recording.h>
 #include <guacamole/socket.h>
 #include <guacamole/user.h>
 
@@ -80,6 +81,18 @@ int guac_drv_user_join_handler(guac_user* user, int argc, char** argv) {
     if (display->audio)
         guac_pa_stream_add_user(display->audio, user);
 #endif
+
+    /* Set up screen recording, if requested */
+    if (settings->recording_path != NULL) {
+        display->recording = guac_recording_create(client,
+            settings->recording_path,
+            settings->recording_name,
+            settings->create_recording_path,
+            !settings->recording_exclude_output,
+            !settings->recording_exclude_mouse,
+            0, /* Touch events not supported */
+            settings->recording_include_keys);
+    }
 
     /* Accept input only if not read-only */
     if (!settings->read_only) {
@@ -124,6 +137,10 @@ int guac_drv_user_leave_handler(guac_user* user) {
     /* Update shared cursor state */
     guac_common_cursor_remove_user(user_data->display->display->cursor, user);
 
+    /* Clean up recording */
+    if (user_data->display->recording != NULL)
+        guac_recording_free(user_data->display->recording);
+
     /* Clean up settings */
     guac_drv_settings_free(user_data->settings);
 
@@ -148,11 +165,17 @@ int guac_drv_user_size_handler(guac_user* user, int width, int height) {
 
 int guac_drv_user_key_handler(guac_user* user, int keysym, int pressed) {
 
+    guac_drv_user_data* user_data = (guac_drv_user_data*) user->data;
+
     /* Build keyboard event packet */
     guac_drv_input_event event;
     event.type = GUAC_DRV_INPUT_EVENT_KEYBOARD;
     event.data.keyboard.keysym = keysym;
     event.data.keyboard.pressed = pressed;
+
+    if (user_data->display->recording != NULL)
+        guac_recording_report_key(user_data->display->recording,
+                keysym, pressed);
 
     /* Send packet */
     guac_drv_input_send_event(&event);
@@ -180,6 +203,10 @@ int guac_drv_user_mouse_handler(guac_user* user,
     event.data.mouse.change_mask = change;
     event.data.mouse.x = x;
     event.data.mouse.y = y;
+
+    if (user_data->display->recording != NULL)
+        guac_recording_report_mouse(user_data->display->recording,
+                x, y, mask);
 
     /* Send packet */
     user_data->button_mask = mask;
