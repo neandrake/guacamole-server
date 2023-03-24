@@ -140,6 +140,12 @@ typedef struct guac_drv_settings {
      */
     bool recording_include_keys;
 
+    /**
+     * Whether the tunnel should send keep-alive NOPs regularly to keep
+     * the client from timing out when there's no activity.
+     */
+    bool keep_alive;
+
 } guac_drv_settings;
 
 /**

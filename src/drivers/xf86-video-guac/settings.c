@@ -51,6 +51,8 @@ const char* GUAC_DRV_CLIENT_ARGS[] = {
     "recording-include-keys",
     "create-recording-path",
 
+    "keep-alive",
+
     NULL
 };
 
@@ -163,6 +165,12 @@ enum GUAC_DRV_ARGS_IDX {
      */
     IDX_CREATE_RECORDING_PATH,
 
+    /**
+     * Whether this connection should regularly send back NOP instructions
+     * when there's no activity, to prevent the client from timing out.
+     */
+    IDX_KEEP_ALIVE,
+
     DRV_ARGS_COUNT
 };
 
@@ -260,6 +268,11 @@ guac_drv_settings* guac_drv_parse_args(guac_user* user,
     settings->create_recording_path =
         guac_user_parse_args_boolean(user, GUAC_DRV_CLIENT_ARGS, argv,
                 IDX_CREATE_RECORDING_PATH, false);
+
+    /* Keep-alive */
+    settings->keep_alive =
+        guac_user_parse_args_boolean(user, GUAC_DRV_CLIENT_ARGS, argv,
+                IDX_KEEP_ALIVE, false);
 
     return settings;
 

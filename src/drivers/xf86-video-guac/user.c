@@ -119,6 +119,10 @@ int guac_drv_user_join_handler(guac_user* user, int argc, char** argv) {
      * heuristics) */
     guac_common_display_set_lossless(display->display, settings->lossless);
 
+    /* Initialize keep-alive if specified */
+    if (settings->keep_alive)
+        guac_socket_require_keep_alive(user->socket);
+
     /* Init user display state */
     guac_drv_display_sync_user(display, user);
 
