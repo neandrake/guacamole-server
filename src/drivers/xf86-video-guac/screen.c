@@ -18,15 +18,15 @@
  * under the License.
  */
 
-#include "config.h"
-#include "display.h"
-#include "drv.h"
 #include "composite.h"
+#include "config.h"
 #include "crtc.h"
 #include "cursor.h"
 #include "display.h"
+#include "drv.h"
 #include "gc.h"
 #include "log.h"
+#include "keysym2ucs.h"
 #include "pixmap.h"
 #include "screen.h"
 #include "window.h"
@@ -138,6 +138,9 @@ Bool guac_drv_pre_init(ScrnInfoPtr screen, int flags) {
     /* Load framebuffer module for managing screen */
     if (!xf86LoadSubModule(screen, "fb"))
         return FALSE;
+
+    /* Initialize the reverse keysym lookup cache */
+    ucs2keysym(0x0020);
 
     xf86DrvMsg(screen->scrnIndex, X_INFO, "PreInit complete\n");
     return TRUE;

@@ -39,6 +39,7 @@ noinst_HEADERS =      \
     image.h           \
     input.h           \
     io.h              \
+    keysym2ucs.h      \
     log.h             \
     pixmap.h          \
     poly.h            \
@@ -65,6 +66,7 @@ guac_drv_la_SOURCES = \
     image.c           \
     input.c           \
     io.c              \
+    keysym2ucs.c      \
     log.c             \
     pixmap.c          \
     poly.c            \

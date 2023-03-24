@@ -22,6 +22,7 @@
 #include "input.h"
 #include "io.h"
 #include "log.h"
+#include "keysym2ucs.h"
 
 #include <xorg-server.h>
 #include <xf86.h>
@@ -207,6 +208,13 @@ static void guac_drv_input_read_input(InputInfoPtr info) {
                         "will be dropped!\n");
 
             else {
+
+                /* If the keysym is actually a unicode keysym, convert to a
+                 * legacy keysym. */
+                if ((event.data.keyboard.keysym & 0x01000000) != 0) {
+                    event.data.keyboard.keysym =
+                        ucs2keysym(event.data.keyboard.keysym);
+                }
 
                 /* Translate keysyms into keycodes via XKB layout */
                 guac_drv_input_translate_keysym(info, syms,
