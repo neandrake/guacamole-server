@@ -178,7 +178,7 @@ guac_drv_display* guac_drv_display_alloc(ScreenPtr screen,
         const char* address, const char* port, const char* pa_server_name,
         const char* cert_file, const char* key_file) {
 
-    guac_drv_display* display = malloc(sizeof(guac_drv_display));
+    guac_drv_display* display = calloc(1, sizeof(guac_drv_display));
 
     /* Init underlying client */
     guac_client* client = guac_client_alloc();

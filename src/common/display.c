@@ -142,6 +142,8 @@ guac_common_display* guac_common_display_alloc(guac_client* client,
     display->layers = NULL;
     display->buffers = NULL;
 
+    display->lossless = 0;
+
     return display;
 
 }
