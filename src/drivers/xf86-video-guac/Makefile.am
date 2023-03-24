@@ -17,7 +17,7 @@
 # under the License.
 #
 
-AUTOMAKE_OPTIONS = foreign 
+AUTOMAKE_OPTIONS = foreign
 
 guac_drv_la_LTLIBRARIES = guac_drv.la
 
@@ -25,6 +25,7 @@ guac_drv_ladir = @XORG_MODULE_DIR@/drivers
 
 noinst_HEADERS =      \
     agent.h           \
+    clipboard.h       \
     composite.h       \
     copy.h            \
     crtc.h            \
@@ -50,6 +51,7 @@ noinst_HEADERS =      \
 
 guac_drv_la_SOURCES = \
     agent.c           \
+    clipboard.c       \
     composite.c       \
     copy.c            \
     crtc.c            \

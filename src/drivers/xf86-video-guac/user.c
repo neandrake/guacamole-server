@@ -70,6 +70,7 @@ int guac_drv_user_join_handler(guac_user* user, int argc, char** argv) {
     user_data->settings = settings;
     user_data->display = display;
     user_data->button_mask = 0;
+    user_data->agent = NULL;
 
     /* Set handler for user cleanup */
     user->leave_handler = guac_drv_user_leave_handler;
@@ -84,9 +85,10 @@ int guac_drv_user_join_handler(guac_user* user, int argc, char** argv) {
     if (!settings->read_only) {
 
         /* Set user event handlers */
-        user->size_handler  = guac_drv_user_size_handler;
-        user->key_handler   = guac_drv_user_key_handler;
-        user->mouse_handler = guac_drv_user_mouse_handler;
+        user->size_handler      = guac_drv_user_size_handler;
+        user->key_handler       = guac_drv_user_key_handler;
+        user->mouse_handler     = guac_drv_user_mouse_handler;
+        user->clipboard_handler = guac_drv_clipboard_handler;
 
         /* Connect agent X client if authorization is available */
         if (display->auth != NULL)

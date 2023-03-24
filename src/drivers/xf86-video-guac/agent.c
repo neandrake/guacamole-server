@@ -18,8 +18,10 @@
  * under the License.
  */
 
-#include "config.h"
 #include "agent.h"
+#include "clipboard.h"
+#include "config.h"
+#include "user.h"
 #include "xclient.h"
 
 #include <guacamole/protocol.h>
@@ -119,6 +121,23 @@ static void* guac_drv_agent_thread(void* data) {
         return NULL;
     }
 
+    /* Use the standard clipboard atom */
+    xcb_atom_t xa_clipboard = guac_drv_get_atom(connection, "CLIPBOARD");
+    if (xa_clipboard == XCB_ATOM_NONE) {
+        guac_user_log(agent->user, GUAC_LOG_WARNING, "X server does not "
+                "support the CLIPBOARD atom. Clipboard will not work.");
+        return NULL;
+    }
+
+    /* Agent thread must respond to a targets request and respond with the
+     * supported conversion types. */
+    xcb_atom_t xa_targets = guac_drv_get_atom(connection, "TARGETS");
+    if (xa_targets == XCB_ATOM_NONE) {
+        guac_user_log(agent->user, GUAC_LOG_WARNING, "X server does not "
+                "support the TARGETS atom. Clipboard will not work.");
+        return NULL;
+    }
+
     /* Init XFixes extension */
     const xcb_query_extension_reply_t* xfixes =
         guac_drv_init_xfixes(connection);
@@ -132,7 +151,7 @@ static void* guac_drv_agent_thread(void* data) {
 
     /* Request XFixes to inform us of selection changes */
     xcb_xfixes_select_selection_input_checked(connection, agent->dummy,
-            XCB_ATOM_PRIMARY,
+            xa_clipboard,
             XCB_XFIXES_SELECTION_EVENT_MASK_SELECTION_CLIENT_CLOSE
             | XCB_XFIXES_SELECTION_EVENT_MASK_SELECTION_WINDOW_DESTROY
             | XCB_XFIXES_SELECTION_EVENT_MASK_SET_SELECTION_OWNER);
@@ -150,7 +169,7 @@ static void* guac_drv_agent_thread(void* data) {
 
         /* If notified of a selection change, request conversion to UTF8 */
         if (event_type == xfixes->first_event + XCB_XFIXES_SELECTION_NOTIFY) {
-            xcb_convert_selection(connection, agent->dummy, XCB_ATOM_PRIMARY,
+            xcb_convert_selection(connection, agent->dummy, xa_clipboard,
                     utf8_string, xsel_data, XCB_CURRENT_TIME);
             xcb_flush(connection);
         }
@@ -165,6 +184,74 @@ static void* guac_drv_agent_thread(void* data) {
                     selection_notify->requestor, selection_notify->property,
                     utf8_string);
 
+        }
+
+        else if (event_type == XCB_SELECTION_REQUEST) {
+
+            xcb_selection_request_event_t* selection_req =
+                (xcb_selection_request_event_t*) event;
+
+            guac_drv_user_data* user_data =
+                (guac_drv_user_data*) agent->user->data;
+            guac_common_clipboard *clipboard =
+                user_data->display->clipboard;
+
+            xcb_atom_t property = XCB_ATOM_NONE;
+
+            // Request for the supported targets
+            if (selection_req->target == xa_targets) {
+                property = selection_req->property;
+                // For now only conversion to UTF-8 is supported, as well
+                // need to indicate this will respond to a targets request.
+                xcb_atom_t atoms[] = {utf8_string, xa_targets};
+
+                // Change the property/atom on the requestor to have the
+                // response value.
+                xcb_change_property(
+                    connection, XCB_PROP_MODE_REPLACE,
+                    selection_req->requestor,
+                    selection_req->property, selection_req->target, 32,
+                    sizeof(atoms)/sizeof(atoms[0]), (char*) atoms);
+            }
+
+            // Request for the clipboard contents
+            else if (selection_req->selection == xa_clipboard
+                && selection_req->target == utf8_string) {
+
+                property = selection_req->property;
+
+                // Change the clipboard atom on the requestor to be the
+                // clipboard contents.
+                xcb_change_property(
+                    connection, XCB_PROP_MODE_REPLACE,
+                    selection_req->requestor,
+                    selection_req->property, selection_req->target, 8,
+                    clipboard->length, clipboard->buffer);
+            }
+
+            // Unsupported request
+            else {
+                guac_user_log(agent->user, GUAC_LOG_WARNING, "Window "
+                    "requested unsupported selection/target.");
+            }
+
+            // Send notification of response back to requestor
+            xcb_selection_notify_event_t* notify_event =
+                (xcb_selection_notify_event_t*) malloc(
+                    sizeof(xcb_selection_notify_event_t));
+            notify_event->response_type = XCB_SELECTION_NOTIFY;
+            notify_event->time = selection_req->time;
+            notify_event->requestor = selection_req->requestor;
+            notify_event->selection = selection_req->selection;
+            notify_event->target = selection_req->target;
+            notify_event->property = property;
+
+            xcb_send_event(connection, 0, selection_req->requestor, 0,
+                    (char*) notify_event);
+
+            xcb_flush(connection);
+
+            free(notify_event);
         }
 
     } /* end event loop */
@@ -224,9 +311,37 @@ void guac_drv_agent_free(guac_drv_agent* agent) {
 
     /* Wait for agent thread, if running */
     if (agent->thread_running) {
+        // Stop the agent's event loop by sending an arbitrary plain event to
+        // trigger xcb_wait_for_event()
         agent->thread_running = 0;
+
+        xcb_client_message_event_t* notify_event =
+            (xcb_client_message_event_t*) malloc(
+                sizeof(xcb_client_message_event_t));
+
+        memset(notify_event, 0, sizeof(xcb_client_message_event_t));
+
+        xcb_atom_t xa_guac_drv_agent_free =
+            guac_drv_get_atom(agent->connection, "GUAC_DRV_AGENT_FREE");
+
+        notify_event->response_type = XCB_CLIENT_MESSAGE;
+        notify_event->format = 32;
+        notify_event->sequence = 0;
+        notify_event->window = agent->dummy;
+        notify_event->type = xa_guac_drv_agent_free;
+        notify_event->data.data32[0] = 0;
+
+        xcb_send_event(agent->connection, 0,
+            agent->dummy, XCB_EVENT_MASK_NO_EVENT,
+            (char*) notify_event);
+
+        xcb_flush(agent->connection);
+
         pthread_join(agent->thread, NULL);
     }
+
+    /* Destroy the dummy window */
+    xcb_destroy_window(agent->connection, agent->dummy);
 
     /* Disconnect and free */
     xcb_disconnect(agent->connection);

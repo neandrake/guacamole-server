@@ -18,6 +18,7 @@
  * under the License.
  */
 
+#include "clipboard.h"
 #include "config.h"
 #include "common/cursor.h"
 #include "common/display.h"
@@ -194,6 +195,9 @@ guac_drv_display* guac_drv_display_alloc(ScreenPtr screen,
     display->client = client;
     display->modified = 0;
 
+    display->clipboard = guac_common_clipboard_alloc(
+            GUAC_DRV_CLIPBOARD_MAX_BYTES);
+
 #ifdef ENABLE_SSL
     display->cert_file = cert_file;
     display->key_file = key_file;
@@ -240,6 +244,12 @@ guac_drv_display* guac_drv_display_alloc(ScreenPtr screen,
 
     return display;
 
+}
+
+void guac_drv_free_display(guac_drv_display* display) {
+    guac_common_clipboard_free(display->clipboard);
+    guac_client_free(display->client);
+    guac_common_display_free(display->display);
 }
 
 void guac_drv_display_resize(guac_drv_display* display, int w, int h) {

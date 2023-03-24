@@ -19,6 +19,7 @@
  */
 
 #include "config.h"
+#include "display.h"
 #include "drv.h"
 #include "composite.h"
 #include "crtc.h"
@@ -168,7 +169,7 @@ void guac_drv_leave_vt(ScrnInfoPtr screen_info) {
 static Bool guac_drv_close_screen(ScreenPtr screen) {
 
     /* Get guac_drv_screen */
-    guac_drv_screen* guac_screen = 
+    guac_drv_screen* guac_screen =
         (guac_drv_screen*) dixGetPrivate(&(screen->devPrivates),
                                          GUAC_SCREEN_PRIVATE);
 
@@ -189,7 +190,7 @@ static Bool guac_drv_create_window(WindowPtr window) {
 
     /* Get guac_drv_screen */
     ScreenPtr screen = window->drawable.pScreen;
-    guac_drv_screen* guac_screen = 
+    guac_drv_screen* guac_screen =
         (guac_drv_screen*) dixGetPrivate(&(screen->devPrivates),
                                          GUAC_SCREEN_PRIVATE);
 
@@ -281,7 +282,7 @@ static Bool guac_drv_change_window_attributes(WindowPtr window,
 
     /* Get guac_drv_screen */
     ScreenPtr screen = window->drawable.pScreen;
-    guac_drv_screen* guac_screen = 
+    guac_drv_screen* guac_screen =
         (guac_drv_screen*) dixGetPrivate(&(screen->devPrivates),
                                          GUAC_SCREEN_PRIVATE);
 
@@ -307,7 +308,7 @@ static Bool guac_drv_create_gc(GCPtr gc) {
 
     /* Get guac_drv_screen */
     ScreenPtr screen = gc->pScreen;
-    guac_drv_screen* guac_screen = 
+    guac_drv_screen* guac_screen =
         (guac_drv_screen*) dixGetPrivate(&(screen->devPrivates),
                                          GUAC_SCREEN_PRIVATE);
 
@@ -335,7 +336,7 @@ static Bool guac_drv_unrealize_window(WindowPtr window) {
 
     /* Get guac_drv_screen */
     ScreenPtr screen = window->drawable.pScreen;
-    guac_drv_screen* guac_screen = 
+    guac_drv_screen* guac_screen =
         (guac_drv_screen*) dixGetPrivate(&(screen->devPrivates),
                                          GUAC_SCREEN_PRIVATE);
 
@@ -365,11 +366,11 @@ static Bool guac_drv_realize_window(WindowPtr window) {
 
     /* Get guac_drv_screen */
     ScreenPtr screen = window->drawable.pScreen;
-    guac_drv_screen* guac_screen = 
+    guac_drv_screen* guac_screen =
         (guac_drv_screen*) dixGetPrivate(&(screen->devPrivates),
                                          GUAC_SCREEN_PRIVATE);
     /* Get drawable */
-    guac_drv_drawable* drawable = 
+    guac_drv_drawable* drawable =
         (guac_drv_drawable*) dixGetPrivate(&(window->devPrivates),
                                          GUAC_WINDOW_PRIVATE);
 
@@ -395,7 +396,7 @@ static void guac_drv_move_window(WindowPtr window, int x, int y,
 
     /* Get guac_drv_screen */
     ScreenPtr screen = window->drawable.pScreen;
-    guac_drv_screen* guac_screen = 
+    guac_drv_screen* guac_screen =
         (guac_drv_screen*) dixGetPrivate(&(screen->devPrivates),
                                          GUAC_SCREEN_PRIVATE);
 
@@ -457,7 +458,7 @@ static void guac_drv_resize_window(WindowPtr window, int x, int y,
 
     /* Get guac_drv_screen */
     ScreenPtr screen = window->drawable.pScreen;
-    guac_drv_screen* guac_screen = 
+    guac_drv_screen* guac_screen =
         (guac_drv_screen*) dixGetPrivate(&(screen->devPrivates),
                                          GUAC_SCREEN_PRIVATE);
 
@@ -488,7 +489,7 @@ static void guac_drv_reparent_window(WindowPtr window,
 
     /* Get guac_drv_screen */
     ScreenPtr screen = window->drawable.pScreen;
-    guac_drv_screen* guac_screen = 
+    guac_drv_screen* guac_screen =
         (guac_drv_screen*) dixGetPrivate(&(screen->devPrivates),
                                          GUAC_SCREEN_PRIVATE);
 
@@ -531,7 +532,7 @@ static void guac_drv_restack_window(WindowPtr window, WindowPtr old_next) {
 
     /* Get guac_drv_screen */
     ScreenPtr screen = window->drawable.pScreen;
-    guac_drv_screen* guac_screen = 
+    guac_drv_screen* guac_screen =
         (guac_drv_screen*) dixGetPrivate(&(screen->devPrivates),
                                          GUAC_SCREEN_PRIVATE);
 
@@ -613,7 +614,7 @@ static Bool guac_drv_destroy_window(WindowPtr window) {
 
     /* Get guac_drv_screen */
     ScreenPtr screen = window->drawable.pScreen;
-    guac_drv_screen* guac_screen = 
+    guac_drv_screen* guac_screen =
         (guac_drv_screen*) dixGetPrivate(&(screen->devPrivates),
                                          GUAC_SCREEN_PRIVATE);
 
@@ -662,12 +663,15 @@ void guac_drv_free_screen(ScrnInfoPtr screen_info) {
 
     /* Get guac_drv_screen */
     ScreenPtr screen = screen_info->pScreen;
-    guac_drv_screen* guac_screen = 
+    guac_drv_screen* guac_screen =
         (guac_drv_screen*) dixGetPrivate(&(screen->devPrivates),
                                          GUAC_SCREEN_PRIVATE);
 
     /* Free framebuffer */
     free(guac_screen->framebuffer);
+
+    /* Free the display */
+    guac_drv_free_display(guac_screen->display);
 
     /* Free private data */
     free(guac_screen);

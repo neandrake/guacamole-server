@@ -21,6 +21,7 @@
 #ifndef __GUAC_DISPLAY_H
 #define __GUAC_DISPLAY_H
 
+#include "clipboard.h"
 #include "config.h"
 #include "common/display.h"
 #include "drawable.h"
@@ -154,6 +155,11 @@ typedef struct guac_drv_display {
     guac_pa_stream* audio;
 #endif
 
+    /**
+     * The current clipboard contents.
+     */
+    guac_common_clipboard* clipboard;
+
 } guac_drv_display;
 
 /**
@@ -162,6 +168,13 @@ typedef struct guac_drv_display {
 guac_drv_display* guac_drv_display_alloc(ScreenPtr screen,
         const char* address, const char* port, const char* pa_server_name,
         const char* cert_file, const char* key_file);
+
+
+/**
+ * Frees resources used by a multicast display. This will close out all
+ * connections.
+ */
+void guac_drv_free_display(guac_drv_display* display);
 
 /**
  * Immediately resizes the Guacamole display to the given width and height.
@@ -174,7 +187,7 @@ void guac_drv_display_resize(guac_drv_display* display, int w, int h);
  * Creates a new layer, returning the new drawable representing that layer.
  */
 guac_drv_drawable* guac_drv_display_create_layer(guac_drv_display* display,
-        guac_drv_drawable* parent, int x, int y, int z, 
+        guac_drv_drawable* parent, int x, int y, int z,
         int width, int height, int opacity);
 
 /**
