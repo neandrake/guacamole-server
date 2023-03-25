@@ -23,34 +23,32 @@
 #include "display.h"
 #include "log.h"
 #include "screen.h"
+#include "user.h"
 
 #include <xorg-server.h>
 #include <xf86.h>
 #include <xf86Cursor.h>
 #include <cursorstr.h>
 
-static void guac_drv_cursor_set_argb(guac_drv_cursor* guac_cursor,
-        CursorPtr cursor) {
-
-    guac_drv_log(GUAC_LOG_DEBUG, "STUB: %s (%i, %i) %ix%i", __func__,
-            guac_cursor->hotspot_x, guac_cursor->hotspot_y,
-            guac_cursor->width, guac_cursor->height);
-
-}
-
-static void guac_drv_cursor_set_glyph(guac_drv_cursor* guac_cursor,
-        CursorPtr cursor) {
+static void guac_drv_cursor_render(guac_drv_cursor* guac_cursor,
+        CursorPtr cursor, Bool use_argb) {
 
     int x;
     int y;
 
     /* Calculate foreground color */
-    uint32_t fg = 0xFF000000 | (cursor->foreRed << 16)
-        | (cursor->foreGreen << 8) | (cursor->foreBlue);
+    uint32_t fg = 0xFF000000
+        | ((0xFF & cursor->foreRed) << 16)
+        | ((0xFF & cursor->foreGreen) << 8)
+        | (0xFF & cursor->foreBlue);
 
     /* Calculate background color */
-    uint32_t bg = 0xFF000000 | (cursor->backRed << 16)
-        | (cursor->backGreen << 8) | (cursor->backBlue);
+    uint32_t bg = 0xFF000000
+        | ((0xFF & cursor->backRed) << 16)
+        | ((0xFF & cursor->backGreen) << 8)
+        | (0xFF & cursor->backBlue);
+
+    CARD32* argb = cursor->bits->argb;
 
     /* Get source and destination image data */
     uint32_t* src_row = (uint32_t*) cursor->bits->source;
@@ -71,13 +69,24 @@ static void guac_drv_cursor_set_glyph(guac_drv_cursor* guac_cursor,
             /* Draw pixel only if mask is set. */
             if (mask & 0x1) {
 
-                /* Select foreground/background depending on source bit */
-                *dst = (src & 0x1) ? fg : bg;
+                if (use_argb == TRUE) {
 
+                    *dst = (*argb | 0xFF000000);
+                } else {
+
+                    /* Select foreground/background depending on source bit */
+                    *dst = (src & 0x1) ? fg : bg;
+                }
+
+            } else {
+
+                /* A transparent pixel */
+                *dst = 0x0;
             }
 
             /* Next pixel */
             dst++;
+            argb++;
             src >>= 1;
             mask >>= 1;
 
@@ -92,11 +101,104 @@ static void guac_drv_cursor_set_glyph(guac_drv_cursor* guac_cursor,
 
 }
 
-static unsigned char* guac_drv_realize_cursor(xf86CursorInfoPtr cursor_info,
-        CursorPtr cursor) {
+static void guac_drv_set_cursor_colors(ScrnInfoPtr screen_info, int bg, int fg) {
+    /* Do nothing */
+}
 
-    guac_drv_cursor* guac_cursor =
-        (guac_drv_cursor*) calloc(1, sizeof(guac_drv_cursor));
+static void __guac_drv_set_cursor_position(ScreenPtr screen, int x, int y) {
+
+    guac_drv_screen* guac_screen =
+        (guac_drv_screen*) dixGetPrivate(&(screen->devPrivates),
+                GUAC_SCREEN_PRIVATE);
+
+    guac_common_cursor* common_cursor = guac_screen->display->display->cursor;
+    guac_user* user = common_cursor->user;
+
+    /* The user may be null during initialization. */
+    if (user != NULL) {
+        /* Do nothing for now. This can incorrect reset the cursor
+         * image in situations where the application is rendering its
+         * own cursor and the cursor position is also being set. */
+        //guac_drv_user_mouse_handler(user, x, y, common_cursor->button_mask);
+    }
+}
+
+static void guac_drv_set_cursor_position(ScrnInfoPtr screen_info, int x, int y) {
+    __guac_drv_set_cursor_position(screen_info->pScreen, x, y);
+}
+
+static Bool guac_drv_screen_set_cursor_position(DeviceIntPtr device,
+    ScreenPtr screen,
+    int x, int y,
+    Bool generateEvent) {
+
+    Bool ret = TRUE;
+
+    __guac_drv_set_cursor_position(screen, x, y);
+
+    /* Get guac_drv_screen */
+    guac_drv_screen* guac_screen =
+        (guac_drv_screen*) dixGetPrivate(&(screen->devPrivates),
+                GUAC_SCREEN_PRIVATE);
+
+    if (guac_screen->wrapped_set_cursor_pos) {
+        ret = guac_screen->wrapped_set_cursor_pos(device, screen, x, y,
+            generateEvent);
+    }
+
+    return ret;
+}
+
+static void __guac_drv_load_cursor_image(guac_drv_screen* guac_screen,
+    guac_drv_cursor* guac_cursor) {
+
+    /* Set cursor of display */
+    guac_common_cursor_set_argb(guac_screen->display->display->cursor,
+            guac_cursor->hotspot_x, guac_cursor->hotspot_y,
+            (unsigned char*) guac_cursor->image, guac_cursor->width,
+            guac_cursor->height, GUAC_DRV_CURSOR_STRIDE);
+
+    guac_drv_display_touch(guac_screen->display);
+}
+
+static void guac_drv_load_cursor_image(ScrnInfoPtr pScrn,
+        unsigned char* bits) {
+
+    ScreenPtr screen = pScrn->pScreen;
+
+    guac_drv_screen* guac_screen =
+        (guac_drv_screen*) dixGetPrivate(&(screen->devPrivates),
+                GUAC_SCREEN_PRIVATE);
+
+    guac_drv_cursor* guac_cursor = guac_screen->display->cursor;
+
+    __guac_drv_load_cursor_image(guac_screen, guac_cursor);
+}
+
+static void guac_drv_hide_cursor(ScrnInfoPtr screen_info) {
+    /**
+     * Do nothing. The cursor is never rendered on the server but instead we
+     * transmit the cursor image to the client for rendering. The guacamole
+     * protocol does not support hide/show of the cursor.
+     */
+}
+
+static void guac_drv_show_cursor(ScrnInfoPtr screen_info) {
+    /**
+     * Do nothing. The cursor is never rendered on the server but instead we
+     * transmit the cursor image to the client for rendering. The guacamole
+     * protocol does not support hide/show of the cursor.
+     */
+}
+
+static Bool guac_drv_use_hw_cursor(ScreenPtr screen, CursorPtr cursor) {
+    return TRUE;
+}
+
+static guac_drv_cursor* __guac_drv_realize_cursor(guac_drv_screen* guac_screen,
+    CursorPtr cursor) {
+
+    guac_drv_cursor* guac_cursor = guac_screen->display->cursor;
 
     /* Assign dimensions */
     guac_cursor->width = cursor->bits->width;
@@ -106,57 +208,112 @@ static unsigned char* guac_drv_realize_cursor(xf86CursorInfoPtr cursor_info,
     guac_cursor->hotspot_x = cursor->bits->xhot;
     guac_cursor->hotspot_y = cursor->bits->yhot;
 
-    /* Use ARGB cursor image if available */
-    if (cursor->bits->argb != NULL)
-        guac_drv_cursor_set_argb(guac_cursor, cursor);
+    if (cursor->bits->argb != NULL) {
+        /* Use ARGB cursor image if available */
+        guac_drv_cursor_render(guac_cursor, cursor, TRUE);
+    } else {
+        /* Otherwise, use glyph cursor */
+        guac_drv_cursor_render(guac_cursor, cursor, FALSE);
+    }
 
-    /* Otherwise, use glyph cursor */
-    else
-        guac_drv_cursor_set_glyph(guac_cursor, cursor);
+    return guac_cursor;
+}
+
+static Bool guac_drv_screen_realize_cursor(DeviceIntPtr device,
+    ScreenPtr screen,
+    CursorPtr cursor) {
+
+    Bool ret = TRUE;
+
+    /* Get guac_drv_screen */
+    guac_drv_screen* guac_screen =
+        (guac_drv_screen*) dixGetPrivate(&(screen->devPrivates),
+                                         GUAC_SCREEN_PRIVATE);
+
+    guac_drv_cursor* guac_cursor = __guac_drv_realize_cursor(guac_screen,
+        cursor);
+
+    __guac_drv_load_cursor_image(guac_screen, guac_cursor);
+
+    if (guac_screen->wrapped_realize_cursor) {
+        ret = guac_screen->wrapped_realize_cursor(device, screen, cursor);
+    }
+
+    return ret;
+}
+
+static unsigned char* guac_drv_realize_cursor(xf86CursorInfoPtr cursor_info,
+    CursorPtr cursor) {
+
+    /* Get guac_drv_screen */
+    ScreenPtr screen = cursor_info->pScrn->pScreen;
+    guac_drv_screen* guac_screen =
+        (guac_drv_screen*) dixGetPrivate(&(screen->devPrivates),
+                                         GUAC_SCREEN_PRIVATE);
+
+    guac_drv_cursor* guac_cursor = __guac_drv_realize_cursor(guac_screen,
+        cursor);
+
+    guac_drv_load_cursor_image(cursor_info->pScrn,
+                (unsigned char*) guac_cursor);
 
     return (unsigned char*) guac_cursor;
 
 }
 
-static void guac_drv_set_cursor_colors(ScrnInfoPtr screen, int bg, int fg) {
-    /* Do nothing */
-}
+/**
+ * TODO: Investigate whether an implementation of UnrealizeCursor is necessary.
+ * With this registered, even with a "do-nothing" implementation this results
+ * in a segfault when windows are destroyed. Further investigation for why
+ * should compare against the default UnrealizeCursor implementation.
+ */
+/*
+static Bool guac_drv_screen_unrealize_cursor(DeviceIntPtr device,
+    ScreenPtr screen, CursorPtr cursor) {
 
-static void guac_drv_set_cursor_position(ScrnInfoPtr screen, int x, int y) {
-    /* Do nothing */
-}
+    Bool ret = TRUE;
 
-static void guac_drv_load_cursor_image(ScrnInfoPtr screen_info,
-        unsigned char* image) {
-
-    guac_drv_cursor* guac_cursor = (guac_drv_cursor*) image;
-
-    /* Get guac_drv_screen */
-    ScreenPtr screen = screen_info->pScreen;
+    // Get guac_drv_screen //
     guac_drv_screen* guac_screen =
         (guac_drv_screen*) dixGetPrivate(&(screen->devPrivates),
-                GUAC_SCREEN_PRIVATE);
+                                         GUAC_SCREEN_PRIVATE);
 
-    /* Set cursor of display */
-    guac_common_cursor_set_argb(guac_screen->display->display->cursor,
-            guac_cursor->hotspot_x, guac_cursor->hotspot_y,
-            (unsigned char*) guac_cursor->image, guac_cursor->width,
-            guac_cursor->height, GUAC_DRV_CURSOR_STRIDE);
+    guac_drv_cursor* guac_cursor = __guac_drv_realize_cursor(guac_screen,
+        cursor);
 
-    guac_drv_display_touch(guac_screen->display);
+    __guac_drv_load_cursor_image(screen, guac_cursor);
 
+    if (guac_screen->wrapped_unrealize_cursor) {
+        ret = guac_screen->wrapped_unrealize_cursor(device, screen, cursor);
+    }
+
+    return ret;
 }
+*/
 
-static void guac_drv_hide_cursor(ScrnInfoPtr screen) {
-    guac_drv_log(GUAC_LOG_DEBUG, "STUB: %s", __func__);
-}
+static Bool guac_drv_screen_display_cursor(DeviceIntPtr device,
+    ScreenPtr screen, CursorPtr cursor) {
 
-static void guac_drv_show_cursor(ScrnInfoPtr screen) {
-    guac_drv_log(GUAC_LOG_DEBUG, "STUB: %s", __func__);
-}
+    Bool ret = TRUE;
 
-static Bool guac_drv_use_hw_cursor(ScreenPtr screen, CursorPtr cursor) {
-    return TRUE;
+    /* Get guac_drv_screen */
+    guac_drv_screen* guac_screen =
+        (guac_drv_screen*) dixGetPrivate(&(screen->devPrivates),
+                                         GUAC_SCREEN_PRIVATE);
+
+    /* Cursor may be null during initialization */
+    if (cursor) {
+        guac_drv_cursor* guac_cursor = __guac_drv_realize_cursor(guac_screen,
+            cursor);
+
+        __guac_drv_load_cursor_image(guac_screen, guac_cursor);
+    }
+
+    if (guac_screen->wrapped_display_cursor) {
+        ret = guac_screen->wrapped_display_cursor(device, screen, cursor);
+    }
+
+    return ret;
 }
 
 Bool guac_drv_init_cursor(ScreenPtr screen) {
@@ -186,7 +343,42 @@ Bool guac_drv_init_cursor(ScreenPtr screen) {
     cursor_info->UseHWCursor = guac_drv_use_hw_cursor;
     cursor_info->LoadCursorImage = guac_drv_load_cursor_image;
 
+    /* Get guac_drv_screen */
+    guac_drv_screen* guac_screen =
+        (guac_drv_screen*) dixGetPrivate(&(screen->devPrivates),
+                                         GUAC_SCREEN_PRIVATE);
+
+    guac_screen->display->cursor->cursor_info = cursor_info;
+
+    /* Register other cursor related callbacks on the ScreenPtr.
+     * The CursorInfoPtr callbacks above only seem to be called when
+     * custom cursor rendering is applied but not when the standard
+     * system cursors are applied (pointer, I-bar, finger pointer, etc.).
+     * The callbacks on the ScreenPtr appear to be the hook for the
+     * standard/system cursor rendering hooks.*/
+
+    guac_screen->wrapped_realize_cursor = screen->RealizeCursor;
+    screen->RealizeCursor = guac_drv_screen_realize_cursor;
+
+    /* TODO: Investigate whether an implementation of UnrealizeCursor is
+     * necessary. See guac_drv_screen_unrealize_cursor. */
+    /*
+    guac_screen->wrapped_unrealize_cursor = screen->UnrealizeCursor;
+    screen->UnrealizeCursor = guac_drv_screen_unrealize_cursor;
+    */
+
+    guac_screen->wrapped_set_cursor_pos = screen->SetCursorPosition;
+    screen->SetCursorPosition = guac_drv_screen_set_cursor_position;
+
+    guac_screen->wrapped_display_cursor = screen->DisplayCursor;
+    screen->DisplayCursor = guac_drv_screen_display_cursor;
+
     return xf86InitCursor(screen, cursor_info);
 
+}
+
+void guac_drv_cursor_free(guac_drv_cursor* cursor) {
+    xf86DestroyCursorInfoRec(cursor->cursor_info);
+    free(cursor);
 }
 

@@ -155,6 +155,26 @@ typedef struct guac_drv_screen {
      */
     UnrealizeGlyphProcPtr wrapped_unrealize_glyph;
 
+    /**
+     * Wrapped RealizeCursor implementation.
+     */
+    RealizeCursorProcPtr wrapped_realize_cursor;
+
+    /**
+     * Wrapped UnrealizeCursor implementation.
+     */
+    UnrealizeCursorProcPtr wrapped_unrealize_cursor;
+
+    /**
+     * Wrapped SetCursorPosition implementation.
+     */
+    SetCursorPositionProcPtr wrapped_set_cursor_pos;
+
+    /**
+     * Wrapped DisplayCursor implementation.
+     */
+    DisplayCursorProcPtr wrapped_display_cursor;
+
 } guac_drv_screen;
 
 /**

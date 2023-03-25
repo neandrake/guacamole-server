@@ -24,6 +24,7 @@
 #include "clipboard.h"
 #include "config.h"
 #include "common/display.h"
+#include "cursor.h"
 #include "drawable.h"
 
 #ifdef ENABLE_PULSE
@@ -166,6 +167,11 @@ typedef struct guac_drv_display {
      * progress.
      */
     guac_recording* recording;
+
+    /**
+     * The cursor for this screen/display.
+     */
+    guac_drv_cursor* cursor;
 
 } guac_drv_display;
 

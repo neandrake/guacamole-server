@@ -183,6 +183,9 @@ static Bool guac_drv_close_screen(ScreenPtr screen) {
     if (guac_screen->wrapped_close_screen)
         return guac_screen->wrapped_close_screen(screen);
 
+    /* Don't clean up the associated cursor. This cursor is cleaned up when the
+     * display is freed. */
+
     return TRUE;
 
 }
@@ -747,10 +750,6 @@ Bool guac_drv_screen_init(ScreenPtr screen, int argc, char** argv) {
     if (!miCreateDefColormap(screen))
         return FALSE;
 
-    /* Init cursor */
-    if (!guac_drv_init_cursor(screen))
-        return FALSE;
-
     screen->width = screen_info->currentMode->HDisplay;
     screen->height = screen_info->currentMode->VDisplay;
 
@@ -795,6 +794,13 @@ Bool guac_drv_screen_init(ScreenPtr screen, int argc, char** argv) {
             options[GUAC_DRV_OPTION_PULSE_AUDIO_SERVER_NAME].value.str,
             cert_file,
             key_file);
+
+    /*
+     * Init cursor. Do this after the display has been initialized so the
+     * initialization can assign the cursor to the guac_drv_display.
+     */
+    if (!guac_drv_init_cursor(screen))
+        return FALSE;
 
     screen->SaveScreen = guac_drv_save_screen;
 

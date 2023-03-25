@@ -242,11 +242,14 @@ guac_drv_display* guac_drv_display_alloc(ScreenPtr screen,
                 "PulseAudio.");
 #endif
 
+    display->cursor = (guac_drv_cursor*) calloc(1, sizeof(guac_drv_cursor));
+
     return display;
 
 }
 
 void guac_drv_free_display(guac_drv_display* display) {
+    guac_drv_cursor_free(display->cursor);
     guac_common_clipboard_free(display->clipboard);
     guac_client_free(display->client);
     guac_common_display_free(display->display);

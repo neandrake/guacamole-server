@@ -25,6 +25,7 @@
 
 #include <xorg-server.h>
 #include <xf86.h>
+#include <xf86Cursor.h>
 
 /**
  * The maximum width of a cursor supported by this driver, in pixels.
@@ -74,12 +75,22 @@ typedef struct guac_drv_cursor {
      */
     int height;
 
+    /**
+     * Associated cursor for the X Window System.
+     */
+    xf86CursorInfoPtr cursor_info;
+
 } guac_drv_cursor;
 
 /**
  * Initialize hardware cursor rendering.
  */
 Bool guac_drv_init_cursor(ScreenPtr screen);
+
+/**
+ * Free resources used by cursor.
+ */
+void guac_drv_cursor_free(guac_drv_cursor* cursor);
 
 #endif
 
