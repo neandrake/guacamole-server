@@ -38,6 +38,30 @@ void guac_drv_drawable_stub(guac_drv_drawable* drawable, int dx, int dy,
 void guac_drv_drawable_copy_fb(DrawablePtr src, int srcx, int srcy,
         int srcw, int srch, guac_drv_drawable* dst, int dstx, int dsty) {
 
+    /*
+     * fbGetImage() adjusts srcx by adding src->x. If src->x is negative (left
+     * of screen) it results as indexing into src with invalid indices. This
+     * caps it so the indexing will be >= 0 and the width will not expand past
+     * the screen.
+     */
+    if (srcx + src->x < 0) {
+        int diff = srcx + src->x;
+        srcx -= diff;
+        srcw += diff;
+    }
+
+    /*
+     * fbGetImage() adjusts srcy by adding src->y. If src->y is negative (above
+     * the screen) it results as indexing into src with invalid indices. This
+     * caps it so the indexing will be >= 0 and the height will not expand past
+     * the screen.
+     */
+    if (srcy + src->y < 0) {
+        int diff = srcy + src->y;
+        srcy -= diff;
+        srch += diff;
+    }
+
     /* Ensure left edge of source rect does not exceed bounds */
     if (srcx < 0) {
         srcw += srcx;
@@ -52,13 +76,31 @@ void guac_drv_drawable_copy_fb(DrawablePtr src, int srcx, int srcy,
         srcy = 0;
     }
 
+    /* Ensure destination X is within bounds */
+    if (dstx < 0) {
+        srcw += dstx;
+        srcx -= dstx;
+        dstx = 0;
+    }
+
+    /* Ensure destination Y is within bounds */
+    if (dsty < 0) {
+        srch += dsty;
+        srcy -= dsty;
+        dsty = 0;
+    }
+
     /* Ensure right edge of source rect does not exceed bounds */
     if (srcx + srcw > src->width)
         srcw -= srcx + srcw - src->width;
+    if (dstx + srcw > dst->layer->surface->width)
+        srcw -= dstx + srcw - dst->layer->surface->width;
 
     /* Ensure bottom edge of source rect does not exceed bounds */
     if (srcy + srch > src->height)
         srch -= srcy + srch - src->height;
+    if (dsty + srch > dst->layer->surface->height)
+        srch -= dsty + srch - dst->layer->surface->height;
 
     /* Do not copy empty rectangles */
     if (srcw <= 0 || srch <= 0)
