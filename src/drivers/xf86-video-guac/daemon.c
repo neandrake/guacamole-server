@@ -131,7 +131,7 @@ static void* guac_drv_connection_thread(void* data) {
     socket = guac_socket_open(fd);
 
 #endif
-    
+
     if (socket == NULL) {
         return NULL;
     }
@@ -316,9 +316,15 @@ void* guac_drv_listen_thread(void* arg) {
 #endif
 
         /* Init SSL */
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+        /* Init OpenSSL for versions <1.1.0 */
         SSL_library_init();
         SSL_load_error_strings();
         ssl_context = SSL_CTX_new(SSLv23_server_method());
+#else
+        /* Init OpenSSL for versions >=1.1.0 */
+        ssl_context = SSL_CTX_new(TLS_server_method());
+#endif
 
         /* Load key */
         if (display->key_file != NULL) {
